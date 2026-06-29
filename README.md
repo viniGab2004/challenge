@@ -250,44 +250,18 @@ Abaixo estão os fluxos de eventos detalhados por etapas.
 
 Quando uma nova transação é registrada com sucesso na camada `TransactionService`, um evento contendo o ID da conta e o valor da transação é disparado de forma síncrona.
 
-#### Diagrama de Sequência
+#### Sequência de Eventos do Fluxo:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Cliente
-    participant TransactionController
-    participant TransactionService
-    participant EventPublisher
-    participant AccountService
-    participant Database
-
-    Cliente->>TransactionController: POST /transactions
-    Note over TransactionController,TransactionService: Início da Transação (@Transactional)
-    TransactionController->>TransactionService: RegisterTransaction(request)
-    
-    rect rgb(240, 248, 255)
-        Note over TransactionService,Database: Etapa 1: Persistência da Transação
-        TransactionService->>Database: Salva entidade Transaction
-    end
-
-    rect rgb(245, 245, 245)
-        Note over TransactionService,EventPublisher: Etapa 2: Publicação do Evento
-        TransactionService->>EventPublisher: publishEvent(TransactionCreatedEvent)
-    end
-
-    rect rgb(255, 250, 240)
-        Note over AccountService,Database: Etapa 3: Atualização do Saldo da Conta (BEFORE_COMMIT)
-        EventPublisher->>AccountService: Escuta TransactionCreatedEvent
-        AccountService->>Database: Busca Account associada
-        AccountService->>AccountService: Soma valor da transação ao totalAmount
-        AccountService->>AccountService: Atualiza situação (com/sem pendência)
-        AccountService->>Database: Salva Account atualizada
-    end
-
-    TransactionService->>TransactionController: Retorna ID da transação
-    TransactionController->>Cliente: 201 Created (RegisterTransactionResponse)
-```
+* **Início da Transação (`@Transactional`)**: O cliente envia uma requisição `POST /transactions` para o [TransactionController](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Controller/TransactionController.java) que aciona o [TransactionService](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Service/TransactionService.java).
+* **Etapa 1: Persistência da Transação**: O [TransactionService](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Service/TransactionService.java) realiza a validação da transação e a persiste no banco de dados.
+* **Etapa 2: Publicação do Evento**: O [TransactionService](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Service/TransactionService.java) publica o evento `TransactionCreatedEvent` por meio do `ApplicationEventPublisher`.
+* **Etapa 3: Atualização do Saldo da Conta (`BEFORE_COMMIT`)**:
+  * O [AccountService](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Service/AccountService.java) intercepta o `TransactionCreatedEvent` de forma síncrona.
+  * Busca a conta (`Account`) associada à transação no banco de dados.
+  * Adiciona o valor da transação ao saldo total (`totalAmount`) da conta.
+  * Atualiza a situação da conta (definindo como pendente caso o saldo fique negativo).
+  * Salva a conta atualizada no banco de dados.
+* **Retorno e Resposta**: O fluxo retorna ao [TransactionController](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Controller/TransactionController.java), finalizando a transação do banco de dados e devolvendo a resposta `201 Created` para o cliente.
 
 * **Comportamento:** O escutador em `AccountService` recebe o evento, adiciona o valor da transação ao saldo existente da conta (`totalAmount`) e altera a situação da conta para `ACCOUNT_WITH_PENDING` (código de pendência) se o saldo final for menor que zero.
 
@@ -297,44 +271,17 @@ sequenceDiagram
 
 Se a situação de vida de um cliente é atualizada para falecido (`isAlive = false`) na camada `ClientService`, um evento `ClientDiedEvent` é publicado de forma síncrona para congelar a conta do cliente.
 
-#### Diagrama de Sequência
+#### Sequência de Eventos do Fluxo:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Admin
-    participant ClientController
-    participant ClientService
-    participant EventPublisher
-    participant AccountService
-    participant Database
-
-    Admin->>ClientController: PUT /client/client-life-situation
-    Note over ClientController,ClientService: Início da Transação (@Transactional)
-    ClientController->>ClientService: UpdateLifeSituation(request)
-    
-    rect rgb(240, 248, 255)
-        Note over ClientService,Database: Etapa 1: Atualização do Status do Cliente
-        ClientService->>Database: Busca Client e define isAlive = false
-        ClientService->>Database: Salva entidade Client
-    end
-
-    rect rgb(245, 245, 245)
-        Note over ClientService,EventPublisher: Etapa 2: Publicação do Evento
-        ClientService->>EventPublisher: publishEvent(ClientDiedEvent)
-    end
-
-    rect rgb(255, 250, 240)
-        Note over AccountService,Database: Etapa 3: Congelamento da Conta (BEFORE_COMMIT)
-        EventPublisher->>AccountService: Escuta ClientDiedEvent
-        AccountService->>Database: Busca Account pelo clientId
-        AccountService->>AccountService: Define isActive = false e canTransact = false
-        AccountService->>Database: Salva Account congelada
-    end
-
-    ClientService->>ClientController: Retorna resposta de situação de vida
-    ClientController->>Admin: 200 OK (UpdateLifeSituationResponse)
-```
+* **Início da Transação (`@Transactional`)**: O administrador envia uma requisição `PUT /client/client-life-situation` para o [ClientController](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Controller/ClientController.java) que aciona o [ClientService](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Service/ClientService.java).
+* **Etapa 1: Atualização do Status do Cliente**: O [ClientService](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Service/ClientService.java) busca o cliente no banco de dados, define `isAlive = false` e salva a alteração.
+* **Etapa 2: Publicação do Evento**: O [ClientService](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Service/ClientService.java) publica o evento `ClientDiedEvent` por meio do `ApplicationEventPublisher`.
+* **Etapa 3: Congelamento da Conta (`BEFORE_COMMIT`)**:
+  * O [AccountService](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Service/AccountService.java) intercepta o `ClientDiedEvent` de forma síncrona.
+  * Busca a conta (`Account`) correspondente ao cliente associado.
+  * Define os atributos da conta `isActive = false` e `canTransact = false`.
+  * Salva a conta congelada no banco de dados.
+* **Retorno e Resposta**: O fluxo retorna ao [ClientController](file:///home/vinicius/Downloads/pismo_challenge/src/main/java/com/example/pismo_challenge/Controller/ClientController.java), finalizando a transação do banco de dados e devolvendo a resposta `200 OK` para o administrador.
 
 * **Comportamento:** O `AccountService` escuta o evento de óbito e congela imediatamente a conta associada ao cliente (`isActive = false` e `canTransact = false`), impossibilitando novas movimentações de forma automática e segura.
 
