@@ -126,7 +126,7 @@ Para rodar toda a suite de testes unitários desenvolvida (JUnit 5 + Mockito) lo
 
 ## 📍 Endpoints da API
 
-Abaixo estão listados os endpoints disponíveis na aplicação:
+Abaixo estão listados os endpoints disponíveis na aplicação, acompanhados de exemplos de requisições (`Request`) e respostas (`Response`):
 
 ### 1. Clientes (`Client`)
 * **Registrar Cliente**
@@ -141,12 +141,26 @@ Abaixo estão listados os endpoints disponíveis na aplicação:
       "originState": "SP"
     }
     ```
-* **Atualizar Situação de Vida** (Garante regras para bloqueio de conta se o cliente falecer)
+  - **Corpo da Resposta (JSON - 201 Created):**
+    ```json
+    {
+      "clientId": "a4b2c1d3-4567-abcd-ef01-23456789abcd"
+    }
+    ```
+
+* **Atualizar Situação de Vida** (Se alterado para falecido, congela as contas do cliente)
   - **URL:** `PUT /client/client-life-situation`
   - **Corpo da Requisição (JSON):**
     ```json
     {
       "documentNumber": "123.456.789-00",
+      "isAlive": false
+    }
+    ```
+  - **Corpo da Resposta (JSON - 200 OK):**
+    ```json
+    {
+      "clientId": "a4b2c1d3-4567-abcd-ef01-23456789abcd",
       "isAlive": false
     }
     ```
@@ -160,9 +174,23 @@ Abaixo estão listados os endpoints disponíveis na aplicação:
       "documentNumber": "123.456.789-00"
     }
     ```
+  - **Corpo da Resposta (JSON - 201 Created):**
+    ```json
+    {
+      "accountId": "f8c3de45-789a-bcde-f012-3456789abcde"
+    }
+    ```
+
 * **Consultar Conta**
   - **URL:** `GET /accounts/{accountId}`
-  - **Exemplo:** `GET /accounts/a4b2c1d3-4567-abcd-ef01-23456789abcd`
+  - **Exemplo de URL:** `GET /accounts/f8c3de45-789a-bcde-f012-3456789abcde`
+  - **Corpo da Resposta (JSON - 200 OK):**
+    ```json
+    {
+      "accountId": "f8c3de45-789a-bcde-f012-3456789abcde",
+      "documentNumber": 12345678900
+    }
+    ```
 
 ### 3. Transações (`Transaction`)
 * **Registrar Transação**
@@ -170,12 +198,18 @@ Abaixo estão listados os endpoints disponíveis na aplicação:
   - **Corpo da Requisição (JSON):**
     ```json
     {
-      "accountId": "a4b2c1d3-4567-abcd-ef01-23456789abcd",
+      "accountId": "f8c3de45-789a-bcde-f012-3456789abcde",
       "operationTypeCode": 1,
       "amount": -100.50
     }
     ```
     *(Atenção: `amount` deve ser negativo para compras/saques [1, 2, 3] e positivo para voucher de crédito [4])*
+  - **Corpo da Resposta (JSON - 201 Created):**
+    ```json
+    {
+      "transactionId": "9e8d7c6b-5a4f-3e2d-1c0b-9a8f7e6d5c4b"
+    }
+    ```
 
 ---
 
@@ -206,30 +240,105 @@ src/main/java/com/example/pismo_challenge/
 
 ## 🔄 Arquitetura Orientada a Eventos (Local Event-Driven)
 
-Para desacoplar as responsabilidades e garantir a atomicidade das transações do banco, foi implementado um mecanismo de eventos locais utilizando o **`ApplicationEventPublisher`** do Spring Boot e escutadores anotados com **`@TransactionalEventListener`**.
+Para desacoplar as responsabilidades e garantir a atomicidade das transações do banco, foi implementado um mecanismo de eventos síncronos locais utilizando o **`ApplicationEventPublisher`** do Spring Boot e escutadores anotados com **`@TransactionalEventListener`**.
+
+Abaixo estão os fluxos de eventos detalhados por etapas.
+
+---
 
 ### 1. Evento de Transação Criada (`TransactionCreatedEvent`)
-Quando uma nova transação é criada com sucesso na camada `TransactionService`, um evento contendo o ID da conta e o valor da transação é disparado:
+
+Quando uma nova transação é registrada com sucesso na camada `TransactionService`, um evento contendo o ID da conta e o valor da transação é disparado de forma síncrona.
+
+#### Diagrama de Sequência
 
 ```mermaid
 sequenceDiagram
+    autonumber
+    actor Cliente
+    participant TransactionController
     participant TransactionService
     participant EventPublisher
     participant AccountService
     participant Database
 
-    TransactionService->>Database: Salva Transação
-    TransactionService->>EventPublisher: Dispara TransactionCreatedEvent
-    EventPublisher->>AccountService: Notifica UpdateTotalAmount
-    AccountService->>Database: Atualiza Saldo da Conta (totalAmount)
+    Cliente->>TransactionController: POST /transactions
+    Note over TransactionController,TransactionService: Início da Transação (@Transactional)
+    TransactionController->>TransactionService: RegisterTransaction(request)
+    
+    rect rgb(240, 248, 255)
+        Note over TransactionService,Database: Etapa 1: Persistência da Transação
+        TransactionService->>Database: Salva entidade Transaction
+    end
+
+    rect rgb(245, 245, 245)
+        Note over TransactionService,EventPublisher: Etapa 2: Publicação do Evento
+        TransactionService->>EventPublisher: publishEvent(TransactionCreatedEvent)
+    end
+
+    rect rgb(255, 250, 240)
+        Note over AccountService,Database: Etapa 3: Atualização do Saldo da Conta (BEFORE_COMMIT)
+        EventPublisher->>AccountService: Escuta TransactionCreatedEvent
+        AccountService->>Database: Busca Account associada
+        AccountService->>AccountService: Soma valor da transação ao totalAmount
+        AccountService->>AccountService: Atualiza situação (com/sem pendência)
+        AccountService->>Database: Salva Account atualizada
+    end
+
+    TransactionService->>TransactionController: Retorna ID da transação
+    TransactionController->>Cliente: 201 Created (RegisterTransactionResponse)
 ```
 
 * **Comportamento:** O escutador em `AccountService` recebe o evento, adiciona o valor da transação ao saldo existente da conta (`totalAmount`) e altera a situação da conta para `ACCOUNT_WITH_PENDING` (código de pendência) se o saldo final for menor que zero.
 
+---
+
 ### 2. Evento de Óbito do Cliente (`ClientDiedEvent`)
-Se a situação de vida de um cliente é atualizada para falecido (`isAlive = false`) na camada `ClientService`, um evento `ClientDiedEvent` é publicado:
+
+Se a situação de vida de um cliente é atualizada para falecido (`isAlive = false`) na camada `ClientService`, um evento `ClientDiedEvent` é publicado de forma síncrona para congelar a conta do cliente.
+
+#### Diagrama de Sequência
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    participant ClientController
+    participant ClientService
+    participant EventPublisher
+    participant AccountService
+    participant Database
+
+    Admin->>ClientController: PUT /client/client-life-situation
+    Note over ClientController,ClientService: Início da Transação (@Transactional)
+    ClientController->>ClientService: UpdateLifeSituation(request)
+    
+    rect rgb(240, 248, 255)
+        Note over ClientService,Database: Etapa 1: Atualização do Status do Cliente
+        ClientService->>Database: Busca Client e define isAlive = false
+        ClientService->>Database: Salva entidade Client
+    end
+
+    rect rgb(245, 245, 245)
+        Note over ClientService,EventPublisher: Etapa 2: Publicação do Evento
+        ClientService->>EventPublisher: publishEvent(ClientDiedEvent)
+    end
+
+    rect rgb(255, 250, 240)
+        Note over AccountService,Database: Etapa 3: Congelamento da Conta (BEFORE_COMMIT)
+        EventPublisher->>AccountService: Escuta ClientDiedEvent
+        AccountService->>Database: Busca Account pelo clientId
+        AccountService->>AccountService: Define isActive = false e canTransact = false
+        AccountService->>Database: Salva Account congelada
+    end
+
+    ClientService->>ClientController: Retorna resposta de situação de vida
+    ClientController->>Admin: 200 OK (UpdateLifeSituationResponse)
+```
 
 * **Comportamento:** O `AccountService` escuta o evento de óbito e congela imediatamente a conta associada ao cliente (`isActive = false` e `canTransact = false`), impossibilitando novas movimentações de forma automática e segura.
+
+---
 
 ### Por que usar `@TransactionalEventListener`?
 O uso do `@TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)` garante que os efeitos colaterais dos eventos (como atualizar o saldo ou congelar a conta) rodem e sejam persistidos dentro da **mesma transação de banco de dados** antes que a transação original seja confirmada (commitada), mantendo a integridade transacional dos dados intacta.

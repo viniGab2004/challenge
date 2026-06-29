@@ -7,13 +7,13 @@ services:
     restart: always
     environment:
       MYSQL_DATABASE: PISMO_CHALLENGE
-      MYSQL_ROOT_PASSWORD: V1ni6@b06062004
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pV1ni6@b06062004"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD}"]
       timeout: 5s
       retries: 10
       interval: 5s
@@ -27,7 +27,8 @@ services:
     environment:
       - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/PISMO_CHALLENGE
       - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=V1ni6@b06062004
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.MySQLDialect
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
     depends_on:
       db:
