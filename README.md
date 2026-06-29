@@ -116,6 +116,12 @@ docker compose up --build
 ```
 *Após a inicialização do container do banco, a aplicação executará a migração automática das tabelas e estará pronta para receber requisições.*
 
+### Opção 3: Executando os Testes Unitários
+Para rodar toda a suite de testes unitários desenvolvida (JUnit 5 + Mockito) localmente:
+```bash
+./mvnw test
+```
+
 ---
 
 ## 📍 Endpoints da API
