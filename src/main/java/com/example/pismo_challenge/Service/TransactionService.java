@@ -12,6 +12,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 
@@ -62,8 +63,8 @@ public class TransactionService {
 
     private boolean IsValidTransaction(RegisterTransactionRequest request) {
         if (request.getOperationTypeCode() == OperationType.CREDIT_VOUCHER.getOperationTypeCode()) {
-            return request.getAmount() > 0;
+            return request.getAmount().compareTo(BigDecimal.ZERO) > 0;
         }
-        return request.getAmount() < 0;
+        return request.getAmount().compareTo(BigDecimal.ZERO) < 0;
     }
 }

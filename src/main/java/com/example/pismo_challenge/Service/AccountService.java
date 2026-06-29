@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -78,7 +79,7 @@ public class AccountService {
         return Account.builder()
                 .accountId(UUID.randomUUID())
                 .clientId(clientId)
-                .totalAmount(0)
+                .totalAmount(BigDecimal.ZERO)
                 .accountNumber(GenerateAccountNumber())
                 .accountSituation(AccountSituation.ACCOUNT_WITH_NO_PENDING.getSituationCode())
                 .build();
@@ -108,10 +109,10 @@ public class AccountService {
         var account = repository.findAccountByAccountId(event.accountId());
         if(account != null)
         {
-            float newTotalAmount = event.amount() + account.getTotalAmount();
+            BigDecimal newTotalAmount = account.getTotalAmount().add(event.amount());
             account.setTotalAmount(newTotalAmount);
 
-            if(account.getTotalAmount() < 0)
+            if(account.getTotalAmount().compareTo(BigDecimal.ZERO) < 0)
             {
                 account.setAccountSituation(AccountSituation.ACCOUNT_WITH_PENDING.getSituationCode());
             }

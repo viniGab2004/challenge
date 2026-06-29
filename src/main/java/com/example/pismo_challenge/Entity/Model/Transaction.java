@@ -8,9 +8,8 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.sql.SQLType;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Getter
@@ -31,7 +30,7 @@ public class Transaction {
     @Column(name = "operationTypeCode")
     public int operationTypeCode;
     @Column(name = "transactAmount")
-    public float transactAmount;
+    public BigDecimal transactAmount;
     @Column(name = "eventDate")
     public LocalDateTime eventDate;
 }

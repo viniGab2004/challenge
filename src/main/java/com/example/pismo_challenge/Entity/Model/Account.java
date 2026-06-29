@@ -8,7 +8,7 @@ import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.util.Date;
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Getter
@@ -28,7 +28,7 @@ public class Account {
     @Column(name = "accountNumber")
     public int accountNumber;
     @Column(name = "totalAmount")
-    public float totalAmount;
+    public BigDecimal totalAmount;
     @Builder.Default
     @Column(name = "isActive")
     public Boolean isActive = Boolean.TRUE;
