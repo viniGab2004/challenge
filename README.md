@@ -132,8 +132,7 @@ Para rodar toda a suite de testes unitários desenvolvida (JUnit 5 + Mockito) lo
 ```bash
 ./mvnw test
 ```
-
-Caso deseje trabalhar com a interface do Swagger acesse *http://localhost:8080/swagger-ui.html*
+acesse http://localhost:8080/swagger-ui.html
 ---
 
 ## 📍 Endpoints da API
