@@ -103,17 +103,28 @@ Registra cada movimentação financeira realizada.
 Você pode rodar a aplicação localmente utilizando o Maven ou através do Docker Compose.
 
 ### Opção 1: Execução Local com Maven
-Para compilar e iniciar o projeto localmente (requer JDK 25 e MySQL rodando localmente configurado no `application.properties`):
+Para compilar e iniciar o projeto localmente (requer JDK 25 e MySQL rodando localmente):
+1. Crie o arquivo `.env` a partir do modelo [.env.example](file:///home/vinicius/Downloads/pismo_challenge/.env.example) e preencha a variável `DB_PASSWORD` com a senha do seu banco de dados local.
+2. Exporte a variável ou execute os comandos passando-a:
 ```bash
+export DB_PASSWORD=sua_senha
 ./mvnw clean compile
 ./mvnw spring-boot:run
 ```
 
 ### Opção 2: Execução com Docker Compose (Recomendado)
-Para rodar a aplicação e o banco de dados MySQL de forma totalmente isolada em containers Docker:
-```bash
-docker compose up --build
-```
+Para rodar a aplicação e o banco de dados MySQL de forma totalmente isolada em containers Docker, você **deve configurar o arquivo `.env`**:
+
+1. Copie o arquivo de exemplo [.env.example](file:///home/vinicius/Downloads/pismo_challenge/.env.example) para criar o arquivo `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+2. Abra o arquivo `.env` e configure a variável `DB_PASSWORD` com a senha desejada para o banco de dados.
+
+3. Com o arquivo `.env` devidamente configurado, execute o comando abaixo para iniciar os containers:
+   ```bash
+   docker compose up --build
+   ```
 *Após a inicialização do container do banco, a aplicação executará a migração automática das tabelas e estará pronta para receber requisições.*
 
 ### Opção 3: Executando os Testes Unitários
